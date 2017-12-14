@@ -23,7 +23,6 @@
     },
     "homepage": "https://github.com/mx601595686/remote-invoke-router#readme",
     "devDependencies": {
-        "@types/component-emitter": "^1.2.6",
         "@types/expect.js": "^0.3.29",
         "@types/mocha": "^2.2.40",
         "@types/node": "^7.0.13",
@@ -36,7 +35,7 @@
         "typescript": "^2.5.2"
     },
     "dependencies": {
-        "component-emitter": "^1.2.1",
+        "binary-ws": "^1.2.0",
         "log-formatter": "^0.1.5",
         "remote-invoke": "^1.0.5"
     }
