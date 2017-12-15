@@ -36,6 +36,7 @@
     },
     "dependencies": {
         "binary-ws": "^1.2.0",
+        "eventspace": "^2.0.1",
         "log-formatter": "^0.1.5",
         "remote-invoke": "^1.0.5"
     }
