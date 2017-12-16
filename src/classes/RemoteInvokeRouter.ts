@@ -9,9 +9,7 @@ import { ConnectedSocket } from './ConnectedSocket';
 
 export abstract class RemoteInvokeRouter extends Server {
 
-    private readonly _es = new EventSpace();    //用于消息派发
-
-    private readonly _sockets: Map<string, ConnectedSocket> = new Map();    //key 接口连接的模块名称
+    readonly connectedSockets: Map<string, ConnectedSocket> = new Map();    //key 接口连接的模块名称
 
     constructor(server: http.Server | https.Server, configs: BaseSocketConfig) {
         super(server, configs);
