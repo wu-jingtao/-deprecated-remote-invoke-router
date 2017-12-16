@@ -9,7 +9,11 @@ import { ConnectedSocket } from './ConnectedSocket';
 
 export abstract class RemoteInvokeRouter extends Server {
 
-    readonly connectedSockets: Map<string, ConnectedSocket> = new Map();    //key 接口连接的模块名称
+    /**
+     * 与路由器连接的接口    
+     * key 接口连接的模块名称
+     */
+    readonly connectedSockets: Map<string, ConnectedSocket> = new Map();
 
     /**
      * 是否打印收到和发出的消息头部
@@ -24,11 +28,10 @@ export abstract class RemoteInvokeRouter extends Server {
             if (result === false) {
                 socket.close();
             } else {
-                if (this._sockets.has(result)) {
+                if (this.connectedSockets.has(result))
                     socket.close(); //不允许一个模块重复连接
-                } else {
-                    this._sockets.set(result, new ConnectedSocket(socket, result));
-                }
+                else
+                    this.connectedSockets.set(result, new ConnectedSocket(this, socket, result));
             }
         });
     }
@@ -41,38 +44,46 @@ export abstract class RemoteInvokeRouter extends Server {
     abstract onConnection(socket: ServerSocket, req: http.IncomingMessage): false | string;
 
     /**
-     * 为某模块连接添加白名单
-     * @param srcModuleName 要添加的模块名称
-     * @param destModuleName 目标模块名称
-     * @param namespace 允许其访问的path命名空间
+     * 为某连接添加可调用方法白名单
+     * @param moduleName 模块名称
+     * @param invokableModuleName 可调用的模块名称
+     * @param namespace 允许其访问的命名空间
      */
-    addInvokingWhiteList(srcModuleName: string, destModuleName: string, namespace: string) {
-        const src = this._sockets.get(srcModuleName);
-        if (src) {
-            let dest = src.invokingWhiteList.get(destModuleName);
-            if (dest) {
-                dest.add(namespace);
-            } else {
-                dest = new Set();
-                dest.add(namespace);
-                src.invokingWhiteList.set(destModuleName, dest);
-            }
-        }
+    addInvokingWhiteList(moduleName: string, invokableModuleName: string, namespace: string) {
+        const module = this.connectedSockets.get(moduleName);
+        if (module) module.addInvokableWhiteList(invokableModuleName, namespace);
     }
 
     /**
-     * 为某模块连接删除白名单
-     * @param srcModuleName 要添加的模块名称
-     * @param destModuleName 目标模块名称
-     * @param namespace path命名空间
+     * 为某连接删除可调用方法白名单
+     * @param moduleName 模块名称
+     * @param notInvokableModuleName 不允许调用的模块名称
+     * @param namespace 不允许其访问的命名空间
      */
-    removeInvokingWhiteList(srcModuleName: string, destModuleName: string, namespace: string) {
-        const src = this._sockets.get(srcModuleName);
-        if (src) {
-            const dest = src.invokingWhiteList.get(destModuleName);
-            if (dest) {
-                dest.delete(namespace);
-            }
-        }
+    removeInvokingWhiteList(moduleName: string, notInvokableModuleName: string, namespace: string) {
+        const module = this.connectedSockets.get(moduleName);
+        if (module) module.removeInvokableWhiteList(notInvokableModuleName, namespace);
+    }
+
+    /**
+     * 为某连接添加可接收广播白名单
+     * @param moduleName 模块名称
+     * @param receivableModuleName 可接收广播的模块名
+     * @param namespace 可接收的广播命名空间
+     */
+    addReceivingWhiteList(moduleName: string, receivableModuleName: string, namespace: string) {
+        const module = this.connectedSockets.get(moduleName);
+        if (module) module.addReceivableBroadcastWhiteList(receivableModuleName, namespace);
+    }
+
+    /**
+     * 为某连接删除可接收广播白名单
+     * @param moduleName 模块名称
+     * @param notReceivableModuleName 不可接收广播的模块名
+     * @param namespace 不可接收的广播命名空间
+     */
+    removeReceivingWhiteList(moduleName: string, notReceivableModuleName: string, namespace: string) {
+        const module = this.connectedSockets.get(moduleName);
+        if (module) module.removeReceivableBroadcastWhiteList(notReceivableModuleName, namespace);
     }
 }
