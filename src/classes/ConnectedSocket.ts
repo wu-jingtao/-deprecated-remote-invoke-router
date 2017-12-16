@@ -2,7 +2,7 @@ import { BaseSocket } from "binary-ws/bin/BaseSocket/classes/BaseSocket";
 import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
 import { EventSpace } from "eventspace/bin/classes/EventSpace";
 import { MessageType } from 'remote-invoke';
-import { BroadcastOpenMessage, BroadcastCloseMessage } from "remote-invoke/bin/classes/MessageData";
+import { BroadcastOpenMessage, BroadcastCloseMessage, BroadcastOpenFinishMessage, BroadcastCloseFinishMessage } from "remote-invoke/bin/classes/MessageData";
 import log from 'log-formatter';
 
 /**
@@ -125,45 +125,68 @@ export class ConnectedSocket {
                     case MessageType.broadcast: {
                         if (header[1] === this._moduleName) {
                             if (header[3].length <= 256) {
-                                const path = header[3].split('.');
-                                if (this._broadcastReceiverList.hasAncestors(path)) {   //判断是否有其他模块注册的有该广播
-                                    const names = new Set<string>();    //保存注册了该广播的模块名称
-                                    let level = this._broadcastReceiverList._eventLevel;
+                                const en = [this._moduleName, ...header[3].split('.')];
+                                let receiverNumber = 0;   //记录有多少模块监听了该广播
 
-                                    for (const item of path) {
-                                        const current = level.children.get(item);
-                                        if (current) {
-                                            current.receivers.forEach(item => names.add(item as any));
-                                            level = current;
-                                        } else break;
+                                this._router.connectedSockets.forEach(socket => {
+                                    if (socket._broadcastReceivingList.hasAncestors(en)) {
+                                        receiverNumber++;
+                                        socket._sendData(title, data);
                                     }
+                                });
 
-                                    names.forEach(name => {
-                                        const socket = this._router.connectedSockets.get(name);
-                                        if (socket)
-                                            socket._sendData(title, data);
-                                        else
-                                            throw new Error('转发广播时发现某个接口已经不存在了，但它还存在于广播转发列表中');
-                                    });
-
+                                if (receiverNumber > 0)
                                     return;
-                                } else {
+                                else
                                     this._sendBroadcastCloseMessage(header[3]);
-                                }
                             }
                         }
                     }
                     case MessageType.broadcast_open: {
+                        const body = JSON.parse(data.toString());
+                        const en = [body[1], ...body[2].split('.')];
 
+                        if (this._receivableBroadcastWhiteList.hasAncestors(en)) //判断有没有权限操作该广播
+                            this._broadcastReceivingList.receive(en, true as any);
+                        else    //如果没有就暂时存放到
+                            this._broadcastNotReceivingList.cancel(en);
+
+                        const msg = new BroadcastOpenFinishMessage();
+                        msg.messageID = body[0];
+                        const result = msg.pack();
+                        this._sendData(result[0], result[1]);
+
+                        return;
                     }
                     case MessageType.broadcast_open_finish: {
-
+                        const timer = this._broadcastOpenCloseTimer.get(Number.parseInt(data.toString()));
+                        if (timer) {
+                            clearInterval(timer);
+                            return;
+                        }
                     }
                     case MessageType.broadcast_close: {
+                        const body = JSON.parse(data.toString());
+                        const en = [body[1], ...body[2].split('.')];
 
+                        if (this._receivableBroadcastWhiteList.hasAncestors(en)) //判断有没有权限操作该广播
+                            this._broadcastReceivingList.cancel(en);
+                        else
+                            this._broadcastNotReceivingList.receive(en, true as any);
+
+                        const msg = new BroadcastCloseFinishMessage();
+                        msg.messageID = body[0];
+                        const result = msg.pack();
+                        this._sendData(result[0], result[1]);
+
+                        return;
                     }
                     case MessageType.broadcast_close_finish: {
-
+                        const timer = this._broadcastOpenCloseTimer.get(Number.parseInt(data.toString()));
+                        if (timer) {
+                            clearInterval(timer);
+                            return;
+                        }
                     }
                 }
 
@@ -299,11 +322,6 @@ export class ConnectedSocket {
 
             (src.receivers as any) = new Set();
             (src.children as any) = new Map();
-
-            const socket = this._router.connectedSockets.get(moduleName);
-            if (socket) {
-
-            }
         }
     }
 
@@ -314,9 +332,9 @@ export class ConnectedSocket {
         const en = [moduleName, namespace];
         this._receivableBroadcastWhiteList.cancel(en);
 
-        if (this._broadcastReceivedList.hasDescendants(en)) {
-            const src = this._broadcastReceivedList._eventLevel.getChildLevel(en, true);
-            const dest = this._broadcastNotReceivedList._eventLevel.getChildLevel(en, true);
+        if (this._broadcastReceivingList.hasDescendants(en)) {
+            const src = this._broadcastReceivingList._eventLevel.getChildLevel(en, true);
+            const dest = this._broadcastNotReceivingList._eventLevel.getChildLevel(en, true);
 
             (dest.receivers as any) = src.receivers;
             (dest.children as any) = src.children;
