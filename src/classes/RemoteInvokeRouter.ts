@@ -11,6 +11,11 @@ export abstract class RemoteInvokeRouter extends Server {
 
     readonly connectedSockets: Map<string, ConnectedSocket> = new Map();    //key 接口连接的模块名称
 
+    /**
+     * 是否打印收到和发出的消息头部
+     */
+    printMessage = false;
+
     constructor(server: http.Server | https.Server, configs: BaseSocketConfig) {
         super(server, configs);
 

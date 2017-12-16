@@ -2,6 +2,8 @@ import { BaseSocket } from "binary-ws/bin/BaseSocket/classes/BaseSocket";
 import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
 import { EventSpace } from "eventspace/bin/classes/EventSpace";
 import { MessageType } from 'remote-invoke';
+import { BroadcastOpenMessage, BroadcastCloseMessage } from "remote-invoke/bin/classes/MessageData";
+import log from 'log-formatter';
 
 /**
  * 与路由器建立上连接的接口
@@ -47,12 +49,6 @@ export class ConnectedSocket {
     private readonly _receivableBroadcastWhiteList = new EventSpace();
 
     /**
-     * 有哪些模块在监听该模块的广播  
-     * key是path，value是要监听该广播的模块名
-     */
-    private readonly _broadcastReceiverList = new EventSpace();
-
-    /**
      * 该模块现在正在接收的广播列表
      * [其他模块的名称,path字符串]
      */
@@ -68,7 +64,7 @@ export class ConnectedSocket {
      * 保存关于当前接口的broadcast_open_finish与broadcast_close_finish响应超时计时器
      * key:_broadcastOpenCloseIndex
      */
-    private readonly _broadcastOpenCloseTimer = new Map();
+    private readonly _broadcastOpenCloseTimer: Map<number, NodeJS.Timer> = new Map();
 
     /**
      * 发送broadcast_open和broadcast_close所需的messageID
@@ -82,7 +78,7 @@ export class ConnectedSocket {
 
         socket.once('close', () => {
             this._router.connectedSockets.delete(this._moduleName);
-            
+
             clearTimeout(this._errorTimer);
 
             this._broadcastOpenCloseTimer.forEach(value => clearInterval(value));   //清除所有计时器
@@ -91,6 +87,7 @@ export class ConnectedSocket {
         socket.on("message", (title, data) => {
             try {
                 const header = JSON.parse(title);
+                this._printMessage(false, header);
 
                 switch (header[0]) {
                     case MessageType.invoke_request: {
@@ -129,16 +126,29 @@ export class ConnectedSocket {
                         if (header[1] === this._moduleName) {
                             if (header[3].length <= 256) {
                                 const path = header[3].split('.');
-                                if (this._routerNeedReceiveList.hasAncestors(path)) {   //判断路由器是否需要转发该广播
-                                    const en = [this._moduleName, ...path];
+                                if (this._broadcastReceiverList.hasAncestors(path)) {   //判断是否有其他模块注册的有该广播
+                                    const names = new Set<string>();    //保存注册了该广播的模块名称
+                                    let level = this._broadcastReceiverList._eventLevel;
 
-                                    this._router.connectedSockets.forEach(socket => {
-                                        if (socket._broadcastReceivedList.hasAncestors(path)) {
+                                    for (const item of path) {
+                                        const current = level.children.get(item);
+                                        if (current) {
+                                            current.receivers.forEach(item => names.add(item as any));
+                                            level = current;
+                                        } else break;
+                                    }
+
+                                    names.forEach(name => {
+                                        const socket = this._router.connectedSockets.get(name);
+                                        if (socket)
                                             socket._sendData(title, data);
-                                        }
+                                        else
+                                            throw new Error('转发广播时发现某个接口已经不存在了，但它还存在于广播转发列表中');
                                     });
 
                                     return;
+                                } else {
+                                    this._sendBroadcastCloseMessage(header[3]);
                                 }
                             }
                         }
@@ -174,7 +184,7 @@ export class ConnectedSocket {
         if (this._errorNumber === 1)
             this._errorTimer = setTimeout(() => { this._errorNumber = 0 }, 10 * 60 * 1000);
         else if (this._errorNumber > 100)
-            this._socket.close();
+            this.close();
     }
 
     /**
@@ -182,6 +192,68 @@ export class ConnectedSocket {
      */
     private _sendData(header: string, data: Buffer) {
         this._socket.send(header, data).catch(() => { });
+        this._printMessage(true, header);
+    }
+
+    /**
+     * 打印收到或发送的消息header
+     * @param sendOrReceive 如果是发送则为true，如果是接收则为false
+     * @param msg 要打印的内容
+     */
+    private _printMessage(sendOrReceive: boolean, header: any[] | string) {
+        if (this._router.printMessage) {
+            if (!Array.isArray(header)) header = JSON.parse(header);
+
+            const result = {
+                type: MessageType[header[0]],
+                sender: header[1],
+                receiver: header[2],
+                path: header[3]
+            };
+
+            if (sendOrReceive)
+                log
+                    .location
+                    .location.bold
+                    .text.cyan.bold.round
+                    .content.cyan('remote-invoke-router', this._moduleName, '发送', JSON.stringify(result, undefined, 4));
+            else
+                log
+                    .location
+                    .location.bold
+                    .text.green.bold.round
+                    .content.green('remote-invoke-router', this._moduleName, '收到', JSON.stringify(result, undefined, 4));
+        }
+    }
+
+    private _sendBroadcastOpenMessage(path: string) {
+        const msg = new BroadcastOpenMessage();
+        msg.broadcastSender = this._moduleName;
+        msg.messageID = this._broadcastOpenCloseIndex++;
+        msg.path = path;
+        const result = msg.pack();
+
+        let fallNumber = 0; //记录请求打开失败多少次了
+
+        this._broadcastOpenCloseTimer.set(msg.messageID, setInterval(() => {
+            this._sendData(result[0], result[1]);
+            if (fallNumber++ > 3) this.close();
+        }, 3 * 60 * 1000));
+    }
+
+    private _sendBroadcastCloseMessage(path: string) {
+        const msg = new BroadcastCloseMessage();
+        msg.broadcastSender = this._moduleName;
+        msg.messageID = this._broadcastOpenCloseIndex++;
+        msg.path = path;
+        const result = msg.pack();
+
+        let fallNumber = 0; //记录请求关闭失败多少次了
+
+        this._broadcastOpenCloseTimer.set(msg.messageID, setInterval(() => {
+            this._sendData(result[0], result[1]);
+            if (fallNumber++ > 3) this.close();
+        }, 3 * 60 * 1000));
     }
 
     /**
@@ -218,15 +290,20 @@ export class ConnectedSocket {
         const en = [moduleName, namespace];
         this._receivableBroadcastWhiteList.receive(en, true as any);
 
-        if (this._broadcastNotReceivedList.hasDescendants(en)) {   //判断之前是否申请注册过
-            const src = this._broadcastNotReceivedList._eventLevel.getChildLevel(en, true);
-            const dest = this._broadcastReceivedList._eventLevel.getChildLevel(en, true);
+        if (this._broadcastNotReceivingList.hasDescendants(en)) {   //判断之前是否申请注册过
+            const src = this._broadcastNotReceivingList._eventLevel.getChildLevel(en, true);
+            const dest = this._broadcastReceivingList._eventLevel.getChildLevel(en, true);
 
             (dest.receivers as any) = src.receivers;    //将之前注册过但不可接收的广播移动到可接收列表中
             (dest.children as any) = src.children;
 
             (src.receivers as any) = new Set();
             (src.children as any) = new Map();
+
+            const socket = this._router.connectedSockets.get(moduleName);
+            if (socket) {
+
+            }
         }
     }
 
