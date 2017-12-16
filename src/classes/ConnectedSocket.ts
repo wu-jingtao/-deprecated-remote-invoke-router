@@ -11,7 +11,7 @@ export class ConnectedSocket {
     /**
      * errorNumber 错误清零计时器
      */
-    private _timer: NodeJS.Timer;
+    private _errorTimer: NodeJS.Timer;
 
     /**
      * 在转发该接口消息的过程中发生了多少次错误。
@@ -47,7 +47,7 @@ export class ConnectedSocket {
     private readonly _receivableBroadcastWhiteList = new EventSpace();
 
     /**
-     * 要接收该模块广播的其他模块名称列表     
+     * 有哪些模块在监听该模块的广播  
      * key是path，value是要监听该广播的模块名
      */
     private readonly _broadcastReceiverList = new EventSpace();
@@ -75,21 +75,17 @@ export class ConnectedSocket {
      */
     private _broadcastOpenCloseIndex: number = 0;
 
-    /**
-     * 路由需要接收该模块发来的哪些广播
-     * key是path，value是要监听该广播的模块名
-     */
-    private readonly _routerNeedReceiveList = new EventSpace();
-
     constructor(router: RemoteInvokeRouter, socket: BaseSocket, moduleName: string) {
         this._router = router;
         this._socket = socket;
         this._moduleName = moduleName;
 
         socket.once('close', () => {
-            clearTimeout(this._timer);
             this._router.connectedSockets.delete(this._moduleName);
-            this._broadcastOpenCloseTimer.forEach(value => clearTimeout(value));   //清除所有计时器
+            
+            clearTimeout(this._errorTimer);
+
+            this._broadcastOpenCloseTimer.forEach(value => clearInterval(value));   //清除所有计时器
         });
 
         socket.on("message", (title, data) => {
@@ -103,7 +99,7 @@ export class ConnectedSocket {
                             if (receiver) { //验证被调用模块是否存在
                                 if (header[3].length <= 256) {  //检查path长度
                                     if (this._invokableWhiteList.has([receiver._moduleName, header[3].split('/')[0]])) {    //判断是否有权访问目标模块的方法
-                                        receiver.sendData(title, data);
+                                        receiver._sendData(title, data);
                                         return;
                                     }
                                 }
@@ -123,7 +119,7 @@ export class ConnectedSocket {
                             const receiver = this._router.connectedSockets.get(header[2]);
                             if (receiver) {
                                 if (this._invokableWhiteList.has([receiver._moduleName]) || receiver._invokableWhiteList.has([this._moduleName])) {
-                                    receiver.sendData(title, data);
+                                    receiver._sendData(title, data);
                                     return;
                                 }
                             }
@@ -138,7 +134,7 @@ export class ConnectedSocket {
 
                                     this._router.connectedSockets.forEach(socket => {
                                         if (socket._broadcastReceivedList.hasAncestors(path)) {
-                                            socket.sendData(title, data);
+                                            socket._sendData(title, data);
                                         }
                                     });
 
@@ -162,9 +158,9 @@ export class ConnectedSocket {
                 }
 
                 //上面的switch分支中，如果执行成功就直接return了，剩下的都是错误情况
-                this.addErrorNumber();
+                this._addErrorNumber();
             } catch {
-                this.addErrorNumber();
+                this._addErrorNumber();
             }
         });
     }
@@ -172,11 +168,11 @@ export class ConnectedSocket {
     /**
      * 错误计数器 + 1
      */
-    addErrorNumber() {
+    private _addErrorNumber() {
         this._errorNumber++;
 
         if (this._errorNumber === 1)
-            this._timer = setTimeout(() => { this._errorNumber = 0 }, 10 * 60 * 1000);
+            this._errorTimer = setTimeout(() => { this._errorNumber = 0 }, 10 * 60 * 1000);
         else if (this._errorNumber > 100)
             this._socket.close();
     }
@@ -184,7 +180,7 @@ export class ConnectedSocket {
     /**
      * 向该接口发送数据
      */
-    sendData(header: string, data: Buffer) {
+    private _sendData(header: string, data: Buffer) {
         this._socket.send(header, data).catch(() => { });
     }
 
@@ -199,6 +195,9 @@ export class ConnectedSocket {
      * 为该模块添加可调用白名单
      */
     addInvokableWhiteList(moduleName: string, namespace: string) {
+        if (moduleName === this._moduleName)
+            throw new Error(`模块：${moduleName} 自己不可以调用自己`);
+
         this._invokableWhiteList.receive([moduleName, namespace], true as any);
     }
 
@@ -213,6 +212,9 @@ export class ConnectedSocket {
      * 添加可接收广播白名单
      */
     addReceivableBroadcastWhiteList(moduleName: string, namespace: string) {
+        if (moduleName === this._moduleName)
+            throw new Error(`模块：${moduleName} 自己不可以监听自己的广播`);
+
         const en = [moduleName, namespace];
         this._receivableBroadcastWhiteList.receive(en, true as any);
 
