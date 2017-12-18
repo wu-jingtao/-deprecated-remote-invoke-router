@@ -1,7 +1,7 @@
 import { BaseSocket } from "binary-ws/bin/BaseSocket/classes/BaseSocket";
 import { EventSpace } from "eventspace/bin/classes/EventSpace";
 import { MessageType } from 'remote-invoke';
-import { BroadcastOpenMessage, BroadcastCloseMessage, BroadcastOpenFinishMessage, BroadcastCloseFinishMessage } from "remote-invoke/bin/classes/MessageData";
+import { BroadcastOpenMessage, BroadcastCloseMessage, BroadcastOpenFinishMessage } from "remote-invoke/bin/classes/MessageData";
 import log from 'log-formatter';
 
 import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
@@ -49,27 +49,29 @@ export class ConnectedSocket {
     private readonly _receivableBroadcastWhiteList = new EventSpace();
 
     /**
-     * 该模块现在正在接收的广播列表
+     * 有哪些模块要接收该模块的广播
      * [其他模块的名称,path字符串]
+     * 
+     * 触发时会传递一个Set对象，注册的监听器需要根据自己模块的_receivableBroadcastWhiteList来判断是否要把自己模块的名字添加到Set中
      */
-    private readonly _broadcastReceivingList = new EventSpace();
+    private readonly _broadcastReceiverList = new EventSpace();
 
     /**
-     * 该模块想要接收但现在还没有权限接收的广播列表
-     * [其他模块的名称,path字符串]
+     * 路由器明确告知模块不要再发送的广播列表。
+     * [path字符串]
      */
-    private readonly _broadcastNotReceivingList = new EventSpace();
+    private readonly _forbiddenBroadcastList = new EventSpace();
 
     /**
      * 保存关于当前接口的broadcast_open_finish与broadcast_close_finish响应超时计时器
      * key:_broadcastOpenCloseIndex
      */
-    private readonly _broadcastOpenCloseTimer: Map<number, NodeJS.Timer> = new Map();
+    private readonly _broadcastOpenTimer: Map<number, NodeJS.Timer> = new Map();
 
     /**
      * 发送broadcast_open和broadcast_close所需的messageID
      */
-    private _broadcastOpenCloseIndex: number = 0;
+    private _broadcastOpenIndex: number = 0;
 
     constructor(router: RemoteInvokeRouter, socket: BaseSocket, moduleName: string) {
         this._router = router;
