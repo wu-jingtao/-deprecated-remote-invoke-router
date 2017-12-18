@@ -1,9 +1,10 @@
 import { BaseSocket } from "binary-ws/bin/BaseSocket/classes/BaseSocket";
-import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
 import { EventSpace } from "eventspace/bin/classes/EventSpace";
 import { MessageType } from 'remote-invoke';
 import { BroadcastOpenMessage, BroadcastCloseMessage, BroadcastOpenFinishMessage, BroadcastCloseFinishMessage } from "remote-invoke/bin/classes/MessageData";
 import log from 'log-formatter';
+
+import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
 
 /**
  * 与路由器建立上连接的接口
@@ -17,7 +18,6 @@ export class ConnectedSocket {
 
     /**
      * 在转发该接口消息的过程中发生了多少次错误。
-     * 默认，在10分钟内如果errorNumber超过了100条则断开连接，过了10分钟没有超过则清0。
      */
     private _errorNumber: number = 0;
 
@@ -121,6 +121,8 @@ export class ConnectedSocket {
                                 }
                             }
                         }
+                        
+                        break;
                     }
                     case MessageType.broadcast: {
                         if (header[1] === this._moduleName) {
@@ -141,6 +143,8 @@ export class ConnectedSocket {
                                     this._sendBroadcastCloseMessage(header[3]);
                             }
                         }
+
+                        break;
                     }
                     case MessageType.broadcast_open: {
                         const body = JSON.parse(data.toString());
@@ -191,23 +195,11 @@ export class ConnectedSocket {
                 }
 
                 //上面的switch分支中，如果执行成功就直接return了，剩下的都是错误情况
-                this._addErrorNumber();
+                this.addErrorNumber();
             } catch {
-                this._addErrorNumber();
+                this.addErrorNumber();
             }
         });
-    }
-
-    /**
-     * 错误计数器 + 1
-     */
-    private _addErrorNumber() {
-        this._errorNumber++;
-
-        if (this._errorNumber === 1)
-            this._errorTimer = setTimeout(() => { this._errorNumber = 0 }, 10 * 60 * 1000);
-        else if (this._errorNumber > 100)
-            this.close();
     }
 
     /**
@@ -224,7 +216,7 @@ export class ConnectedSocket {
      * @param msg 要打印的内容
      */
     private _printMessage(sendOrReceive: boolean, header: any[] | string) {
-        if (this._router.printMessage) {
+        if (this._router.printMessageHeader) {
             if (!Array.isArray(header)) header = JSON.parse(header);
 
             const result = {
@@ -277,6 +269,18 @@ export class ConnectedSocket {
             this._sendData(result[0], result[1]);
             if (fallNumber++ > 3) this.close();
         }, 3 * 60 * 1000));
+    }
+
+    /**
+     * 错误计数器 + 1
+     */
+    addErrorNumber() {
+        this._errorNumber++;
+
+        if (this._errorNumber === 1)
+            this._errorTimer = setTimeout(() => { this._errorNumber = 0 }, 10 * 60 * 1000);
+        else if (this._errorNumber > 50)
+            this.close();
     }
 
     /**

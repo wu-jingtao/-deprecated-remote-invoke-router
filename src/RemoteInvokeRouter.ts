@@ -1,9 +1,8 @@
 import * as http from 'http';
 import * as https from 'https';
-import { Server } from 'binary-ws';
-import { EventSpace } from 'eventspace';
+import { Server, ServerSocket } from 'binary-ws';
 import { BaseSocketConfig } from 'binary-ws/bin/BaseSocket/interfaces/BaseSocketConfig';
-import { ServerSocket } from 'binary-ws/bin/server/classes/ServerSocket';
+import { EventSpace } from 'eventspace';
 
 import { ConnectedSocket } from './ConnectedSocket';
 
@@ -16,21 +15,23 @@ export abstract class RemoteInvokeRouter extends Server {
     readonly connectedSockets: Map<string, ConnectedSocket> = new Map();
 
     /**
-     * 是否打印收到和发出的消息头部
+     * 是否打印收到和发出的消息头部（用于调试）
      */
-    printMessage = false;
+    printMessageHeader = false;
 
     constructor(server: http.Server | https.Server, configs: BaseSocketConfig) {
         super(server, configs);
 
         this.on("connection", (socket, req) => {
             const result = this.onConnection(socket, req);
-            if (result === false) {
+            if (result === false)
                 socket.close();
-            } else {
-                if (this.connectedSockets.has(result))
-                    socket.close(); //不允许一个模块重复连接
-                else
+            else {
+                const module = this.connectedSockets.get(result);
+                if (module) { //不允许一个模块重复连接
+                    module.addErrorNumber();
+                    socket.close();
+                } else
                     this.connectedSockets.set(result, new ConnectedSocket(this, socket, result));
             }
         });
