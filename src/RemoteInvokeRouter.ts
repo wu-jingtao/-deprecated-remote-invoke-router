@@ -45,23 +45,23 @@ export abstract class RemoteInvokeRouter extends Server {
     abstract onConnection(socket: ServerSocket, req: http.IncomingMessage): false | string;
 
     /**
-     * 为某连接添加可调用方法白名单
+     * 为某连接添加可调用白名单
      * @param moduleName 模块名称
      * @param invokableModuleName 可调用的模块名称
      * @param namespace 允许其访问的命名空间
      */
-    addInvokingWhiteList(moduleName: string, invokableModuleName: string, namespace: string) {
+    addInvokableWhiteList(moduleName: string, invokableModuleName: string, namespace: string) {
         const module = this.connectedSockets.get(moduleName);
         if (module) module.addInvokableWhiteList(invokableModuleName, namespace);
     }
 
     /**
-     * 为某连接删除可调用方法白名单
+     * 为某连接删除可调用白名单
      * @param moduleName 模块名称
      * @param notInvokableModuleName 不允许调用的模块名称
      * @param namespace 不允许其访问的命名空间
      */
-    removeInvokingWhiteList(moduleName: string, notInvokableModuleName: string, namespace: string) {
+    removeInvokableWhiteList(moduleName: string, notInvokableModuleName: string, namespace: string) {
         const module = this.connectedSockets.get(moduleName);
         if (module) module.removeInvokableWhiteList(notInvokableModuleName, namespace);
     }
@@ -72,7 +72,7 @@ export abstract class RemoteInvokeRouter extends Server {
      * @param receivableModuleName 可接收广播的模块名
      * @param namespace 可接收的广播命名空间
      */
-    addReceivingWhiteList(moduleName: string, receivableModuleName: string, namespace: string) {
+    addReceivableWhiteList(moduleName: string, receivableModuleName: string, namespace: string) {
         const module = this.connectedSockets.get(moduleName);
         if (module) module.addReceivableBroadcastWhiteList(receivableModuleName, namespace);
     }
@@ -83,7 +83,7 @@ export abstract class RemoteInvokeRouter extends Server {
      * @param notReceivableModuleName 不可接收广播的模块名
      * @param namespace 不可接收的广播命名空间
      */
-    removeReceivingWhiteList(moduleName: string, notReceivableModuleName: string, namespace: string) {
+    removeReceivableWhiteList(moduleName: string, notReceivableModuleName: string, namespace: string) {
         const module = this.connectedSockets.get(moduleName);
         if (module) module.removeReceivableBroadcastWhiteList(notReceivableModuleName, namespace);
     }
