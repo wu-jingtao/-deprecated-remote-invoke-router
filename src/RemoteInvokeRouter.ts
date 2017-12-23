@@ -2,37 +2,59 @@ import * as http from 'http';
 import * as https from 'https';
 import { Server, ServerSocket } from 'binary-ws';
 import { BaseSocketConfig } from 'binary-ws/bin/BaseSocket/interfaces/BaseSocketConfig';
-import { EventSpace } from 'eventspace';
 
-import { ConnectedSocket } from './ConnectedSocket';
+import { ConnectedModule } from './ConnectedModule';
 
 export abstract class RemoteInvokeRouter extends Server {
 
     /**
-     * 与路由器连接的接口    
+     * 与路由器连接的模块    
      * key 接口连接的模块名称
      */
-    readonly connectedSockets: Map<string, ConnectedSocket> = new Map();
+    readonly connectedModules: Map<string, ConnectedModule> = new Map();
+
+    /**
+     * 消息path的最大长度
+     */
+    readonly pathMaxLength = 256;
+
+    /**
+     * 响应超时，默认3分钟
+     */
+    readonly timeout = 3 * 60 * 1000;
 
     /**
      * 是否打印收到和发出的消息头部（用于调试）
      */
     printMessageHeader = false;
 
+    /**
+     * 是否将发生的错误打印到控制台（用于调试）
+     */
+    printError = false;
+
+
+
+
+    
     constructor(server: http.Server | https.Server, configs: BaseSocketConfig) {
         super(server, configs);
 
         this.on("connection", (socket, req) => {
             const result = this.onConnection(socket, req);
+
             if (result === false)
                 socket.close();
             else {
-                const module = this.connectedSockets.get(result);
+                let module = this.connectedModules.get(result);
                 if (module) { //不允许一个模块重复连接
                     module.addErrorNumber();
                     socket.close();
-                } else
-                    this.connectedSockets.set(result, new ConnectedSocket(this, socket, result));
+                } else {
+                    module = new ConnectedModule(this, socket, result);
+                    this.connectedModules.set(result, module);
+                    module.once('close', () => { this.connectedModules.delete(result) });
+                }
             }
         });
     }
