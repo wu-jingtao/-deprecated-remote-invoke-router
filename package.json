@@ -1,7 +1,7 @@
 {
     "name": "remote-invoke-router",
     "version": "0.0.1",
-    "description": "remote-invoke的消息路由器。 提供基本的登陆验证与消息转发过滤模板",
+    "description": "remote-invoke的消息路由器。 提供基本的登陆验证与消息转发过滤框架",
     "main": "./bin/index.js",
     "types": "./bin/index.d.ts",
     "scripts": {
@@ -9,8 +9,9 @@
         "compile": "gulp compile"
     },
     "keywords": [
-        "typescript",
-        "template"
+        "remote",
+        "invoke",
+        "router"
     ],
     "author": "wujingtao",
     "license": "MIT",
@@ -36,7 +37,7 @@
     },
     "dependencies": {
         "binary-ws": "^1.2.0",
-        "eventspace": "^3.0.1",
+        "eventspace": "^3.0.2",
         "log-formatter": "^0.1.5",
         "remote-invoke": "^1.1.0"
     }

@@ -5,7 +5,7 @@ import { ConnectedModule } from "./ConnectedModule";
 import { EventLevel } from 'eventspace/bin/classes/EventLevel';
 
 /**
- * 广播消息交换中心
+ * 广播消息转发中心
  */
 export class BroadcastExchangeCenter {
 

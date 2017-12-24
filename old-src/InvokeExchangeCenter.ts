@@ -2,7 +2,7 @@ import { ConnectedModule } from './ConnectedModule';
 import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
 
 /**
- * 调用交换中心
+ * 调用转发中心
  */
 export class InvokeExchangeCenter {
 

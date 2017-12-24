@@ -1,21 +1,13 @@
 import { MessageType } from "remote-invoke";
 import { BaseSocket } from "binary-ws/bin/BaseSocket/classes/BaseSocket";
 import log from 'log-formatter';
-import { EventSpace } from "eventspace/bin/classes/EventSpace";
+import EventSpace from "eventspace";
+import { BroadcastOpenMessage } from "remote-invoke/bin/classes/MessageData";
 
 import { RemoteInvokeRouter } from "./RemoteInvokeRouter";
-import { BroadcastOpenMessage } from "remote-invoke/bin/classes/MessageData";
 
 /**
  * 与路由器连接上的模块      
- * 
- * 功能：
- * 1. 负责接收与发送消息
- * 2. 管理调用与广播白名单
- * 3. 当广播白名单以及连接的模块申请监听的广播发生变化，该类负责在BroadcastExchangeCenter增加以及删除监听器。
- * 4. 当在BroadcastExchangeCenter中其他模块监听关于该模块的广播发生变化时，该类负责通知模块打开或关闭广播。
- * 5. 当类创建时，查看有哪些关于该模块的广播已在BroadcastExchangeCenter中被监听，如果有则通知模块打开。
- * 6. 统计运行过程中发生的错误次数，超过指定次数则关闭接口。
  */
 export class ConnectedModule {
 
@@ -189,7 +181,7 @@ export class ConnectedModule {
     /**
      * 添加可接收广播白名单
      */
-    addReceivableBroadcastWhiteList(moduleName: string, namespace: string) {
+    addReceivableWhiteList(moduleName: string, namespace: string) {
         if (moduleName === this.moduleName)
             throw new Error(`模块：${moduleName}。自己不可以监听自己的广播`);
 
@@ -204,7 +196,7 @@ export class ConnectedModule {
     /**
      * 删除某项可接收广播白名单
      */
-    removeReceivableBroadcastWhiteList(moduleName: string, namespace: string) {
+    removeReceivableWhiteList(moduleName: string, namespace: string) {
         const en = [moduleName, namespace];
 
         if (this.receivableBroadcastWhiteList.has(en)) {
