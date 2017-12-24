@@ -80,9 +80,9 @@ export abstract class RemoteInvokeRouter extends Server {
 
                 log
                     .location
-                    .text.cyan.bold.round
+                    .text.green.bold.round
                     .location.bold
-                    .content.cyan('remote-invoke-router', '接收到', module.moduleName, JSON.stringify(result, undefined, 4));
+                    .content.green('remote-invoke-router', '接收到', module.moduleName, JSON.stringify(result, undefined, 4));
             }
         });
 
