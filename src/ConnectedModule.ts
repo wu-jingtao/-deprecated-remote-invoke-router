@@ -1,6 +1,5 @@
 import { MessageType, RemoteInvoke } from "remote-invoke";
 import { BaseSocket } from "binary-ws/bin/BaseSocket/classes/BaseSocket";
-import log from 'log-formatter';
 import EventSpace from "eventspace";
 import { BroadcastOpenMessage, InvokeFailedMessage, BroadcastCloseMessage, BroadcastOpenFinishMessage } from "remote-invoke/bin/classes/MessageData";
 
@@ -108,7 +107,7 @@ export class ConnectedModule {
                             if (receiver) {
                                 if (this._invokableWhiteList.get([receiver.moduleName]).forEachDescendants(layer => layer.data as any)
                                     || receiver._invokableWhiteList.get([this.moduleName]).forEachDescendants(layer => layer.data as any)) {
-                                    receiver._sendData([ title, data]);
+                                    receiver._sendData([title, data]);
                                 }
                             }
                         } else {
@@ -122,7 +121,7 @@ export class ConnectedModule {
                             if (header[3].length <= RemoteInvoke.pathMaxLength) {
                                 const layer = this._broadcastExchangeLayer.get(header[3].split('.'));
                                 if (layer.hasAncestors()) {    //是否有人注册该广播
-                                    layer.triggerAncestors([header, title, data]);
+                                    layer.triggerAncestors([title, data]);
                                 } else {    //没有人注册过就通知以后不要再发了
                                     const msg = new BroadcastCloseMessage();
                                     msg.broadcastSender = header[1];
