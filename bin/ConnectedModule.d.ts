@@ -31,7 +31,11 @@ export declare class ConnectedModule {
      * 向该接口发送数据
      * @param data 消息数据，第一个是消息头部，第二个是消息body
      */
-    private _sendData;
+    private _sendData(data);
+    /**
+     * 专门用于发送广播。主要是用于避免重复发送
+     */
+    private _sendBroadcastData;
     /**
      * 断开连接
      */

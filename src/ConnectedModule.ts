@@ -121,7 +121,7 @@ export class ConnectedModule {
                             if (header[3].length <= RemoteInvoke.pathMaxLength) {
                                 const layer = this._broadcastExchangeLayer.get(header[3].split('.'));
                                 if (layer.hasAncestors()) {    //是否有人注册该广播
-                                    layer.triggerAncestors([title, data]);
+                                    layer.triggerAncestors([title, data, new Set()]);
                                 } else {    //没有人注册过就通知以后不要再发了
                                     const msg = new BroadcastCloseMessage();
                                     msg.broadcastSender = header[1];
@@ -147,9 +147,9 @@ export class ConnectedModule {
                             if (!wl_layer.has()) {   //确保不在白名单中重复注册
                                 const listener = wl_layer.on((addOrDelete: boolean) => {
                                     if (addOrDelete)
-                                        this._router.broadcastExchangeCenter.get(path).on(this._sendData);
+                                        this._router.broadcastExchangeCenter.get(path).on(this._sendBroadcastData);
                                     else
-                                        this._router.broadcastExchangeCenter.get(path).off(this._sendData);
+                                        this._router.broadcastExchangeCenter.get(path).off(this._sendBroadcastData);
                                 });
 
                                 if (this._receivableWhiteList.get([path[0], path[1]]).data) //如果该路径包含在白名单中，就立即去注册
@@ -206,15 +206,19 @@ export class ConnectedModule {
             const msg = new BroadcastOpenMessage();
             msg.broadcastSender = this.moduleName;
             msg.messageID = this._broadcastOpenIndex++;
-            msg.path = layer.fullName.slice(2).join('.');
+            msg.path = layer.fullName.slice(1).join('.');
             const result = msg.pack();
 
             let fallNumber = 0; //记录请求打开失败多少次了
 
-            this._broadcastOpenTimer.set(msg.messageID, setInterval(() => {
+            const send = () => {
                 this._sendData(result);
                 if (fallNumber++ >= 3) this.close();
-            }, RemoteInvoke.timeout));
+            };
+
+            this._broadcastOpenTimer.set(msg.messageID, setInterval(send, RemoteInvoke.timeout));
+
+            send();
         };
 
         this._broadcastExchangeLayer.watch('descendantsAddListener', (listener, layer) => {
@@ -226,7 +230,7 @@ export class ConnectedModule {
             if (layer.listenerCount === 0) { //说明需要关闭某个广播path
                 const msg = new BroadcastCloseMessage();
                 msg.broadcastSender = this.moduleName;
-                msg.path = layer.fullName.slice(2).join('.');
+                msg.path = layer.fullName.slice(1).join('.');
                 this._sendData(msg.pack());
             }
         });
@@ -241,9 +245,19 @@ export class ConnectedModule {
      * 向该接口发送数据
      * @param data 消息数据，第一个是消息头部，第二个是消息body
      */
-    private _sendData = (data: [string, Buffer]) => {
+    private _sendData(data: [string, Buffer]) {
         this._socket.send(data[0], data[1]).catch(() => { });
         this._router._emitSentMessage(data[0], data[1], this);
+    }
+
+    /**
+     * 专门用于发送广播。主要是用于避免重复发送
+     */
+    private _sendBroadcastData = (data: [string, Buffer, Set<ConnectedModule>]) => {
+        if (!data[2].has(this)) {   //判断是否已经向该模块转发过了
+            data[2].add(this);
+            this._sendData(data as any);
+        }
     }
 
     /**
