@@ -1,7 +1,7 @@
 {
     "name": "remote-invoke-router",
     "version": "0.0.1",
-    "description": "remote-invoke的消息路由器。 提供基本的登陆验证与消息转发过滤框架",
+    "description": "remote-invoke的消息路由器。 提供基本的登陆验证与消息转发过滤功能",
     "main": "./bin/index.js",
     "types": "./bin/index.d.ts",
     "scripts": {

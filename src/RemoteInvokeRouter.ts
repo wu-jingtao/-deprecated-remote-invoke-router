@@ -11,6 +11,8 @@ import { ErrorType } from './ErrorType';
 
 export abstract class RemoteInvokeRouter extends Server {
 
+    //#region 属性与构造
+
     /**
      * 与路由器连接的模块    
      * key：模块名称
@@ -38,7 +40,7 @@ export abstract class RemoteInvokeRouter extends Server {
     emitExchangeError = false;
 
     /**
-     * 是否打印收到和发出的消息头部（用于调试）。需要将emitReceivedMessage与emitSentMessage设置为true才生效
+     * 是否打印收到和发出的消息头部（用于调试）。需要将emitReceivedMessage或emitSentMessage设置为true才生效
      */
     printMessageHeader = false;
 
@@ -59,12 +61,15 @@ export abstract class RemoteInvokeRouter extends Server {
                 let module = this.connectedModules.get(result);
                 if (module) { //不允许一个模块重复连接
                     socket.close();
-                    if (this.emitExchangeError)
-                        this.emit('exchangeError', ErrorType.duplicateConnection, new Error('重复连接'), module);
+                    this._emitExchangeError(ErrorType.duplicateConnection, module);
                 } else {
                     module = new ConnectedModule(this, socket, result);
                     this.connectedModules.set(result, module);
                     this.emit('module_connected', module);
+                    socket.once('close', () => {
+                        this.connectedModules.delete(result);
+                        this.emit('module_disconnected', module);
+                    });
                 }
             }
         });
@@ -103,14 +108,37 @@ export abstract class RemoteInvokeRouter extends Server {
             }
         });
 
-        this.on("exchangeError", (type, err, module) => {
-            if (this.printError)
+        this.on("exchangeError", (type, module) => {
+            if (this.printError) {
+                let message;
+
+                switch (type) {
+                    case ErrorType.duplicateConnection:
+                        message = `模块"${module.moduleName}"重复与路由器建立连接`;
+                        break;
+                    case ErrorType.senderNameNotCorrect:
+                        message = `模块"${module.moduleName}"发出的消息中，发送者的名称与实际模块名称不匹配`;
+                        break;
+                    case ErrorType.exceedPathMaxLength:
+                        message = `模块"${module.moduleName}"发出的消息中，path超过了规定的长度`;
+                        break;
+                    case ErrorType.messageFormatError:
+                        message = `模块"${module.moduleName}"发来的消息格式有问题`;
+                        break;
+                    case ErrorType.messageTypeError:
+                        message = `模块"${module.moduleName}"发来了未知类型的消息`;
+                        break;
+                }
+
                 log.warn
                     .location.white
                     .location.bold
-                    .content.yellow('remote-invoke-router', module.moduleName, err);
+                    .content.yellow('remote-invoke-router', module.moduleName, message);
+            }
         });
     }
+
+    //#endregion
 
     /**
      * 每当有一个新的连接被创建，该方法就会被触发。返回false表示拒绝连接，返回string表示接受连接。此字符串代表该接口所连接模块的名称
@@ -118,6 +146,8 @@ export abstract class RemoteInvokeRouter extends Server {
      * @param req 客户端向路由器建立连接时发送的get请求
      */
     abstract onConnection(socket: ServerSocket, req: http.IncomingMessage): Promise<false | string>;
+
+    //#region 增减白名单
 
     /**
      * 为某连接添加可调用白名单
@@ -163,6 +193,10 @@ export abstract class RemoteInvokeRouter extends Server {
         if (module) module.removeReceivableWhiteList(notReceivableModuleName, namespace);
     }
 
+    //#endregion
+
+    //#region 事件
+
     on(event: 'error', listener: (err: Error) => void): this;
     on(event: 'listening', listener: () => void): this;
     on(event: 'close', listener: (err: Error) => void): this;
@@ -186,7 +220,7 @@ export abstract class RemoteInvokeRouter extends Server {
     /**
      * 当某个模块的行为不符合规范时触发，通过这个可以做一些模块错误计数
      */
-    on(event: 'exchangeError', listener: (type: ErrorType, err: Error, module: ConnectedModule) => void): this;
+    on(event: 'exchangeError', listener: (type: ErrorType, module: ConnectedModule) => void): this;
     on(event: any, listener: any) {
         super.on(event, listener);
         return this;
@@ -200,9 +234,35 @@ export abstract class RemoteInvokeRouter extends Server {
     once(event: 'module_disconnected', listener: (module: ConnectedModule) => void): this;
     once(event: 'receivedMessage', listener: (header: any[], body: Buffer, module: ConnectedModule) => void): this;
     once(event: 'sentMessage', listener: (header: any[], body: Buffer, module: ConnectedModule) => void): this;
-    once(event: 'exchangeError', listener: (type: ErrorType, err: Error, module: ConnectedModule) => void): this;
+    once(event: 'exchangeError', listener: (type: ErrorType, module: ConnectedModule) => void): this;
     once(event: any, listener: any) {
         super.once(event, listener);
         return this;
     }
+
+    /**
+     * 触发receivedMessage事件
+     */
+    _emitReceivedMessage(header: any[], body: Buffer, module: ConnectedModule) {
+        if (this.emitReceivedMessage)
+            this.emit('receivedMessage', header, body, module);
+    }
+
+    /**
+     * 触发sentMessage事件
+     */
+    _emitSentMessage(header: string, body: Buffer, module: ConnectedModule) {
+        if (this.emitSentMessage)
+            this.emit('sentMessage', JSON.parse(header), body, module);
+    }
+
+    /**
+     * 触发exchangeError事件
+     */
+    _emitExchangeError(type: ErrorType, module: ConnectedModule) {
+        if (this.emitExchangeError)
+            this.emit('exchangeError', type, module);
+    }
+
+    //#endregion
 }
