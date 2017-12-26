@@ -45,9 +45,9 @@ export abstract class RemoteInvokeRouter extends Server {
     printMessageHeader = false;
 
     /**
-     * 是否将发生的错误打印到控制台（用于调试）。需要将emitExchangeError设置为true才生效
+     * 是否将发生的Exchange错误打印到控制台（用于调试）。需要将emitExchangeError设置为true才生效
      */
-    printError = false;
+    printExchangeError = false;
 
     constructor(server: http.Server | https.Server, configs: BaseSocketConfig) {
         super(server, configs);
@@ -85,8 +85,8 @@ export abstract class RemoteInvokeRouter extends Server {
 
                 log
                     .location
-                    .text.green.bold.round
-                    .location.bold
+                    .location.green.bold.round
+                    .text
                     .content.green('remote-invoke-router', '接收到', module.moduleName, JSON.stringify(result, undefined, 4));
             }
         });
@@ -102,14 +102,14 @@ export abstract class RemoteInvokeRouter extends Server {
 
                 log
                     .location
-                    .text.cyan.bold.round
-                    .location.bold
+                    .location.cyan.bold.round
+                    .text
                     .content.cyan('remote-invoke-router', '发送到', module.moduleName, JSON.stringify(result, undefined, 4));
             }
         });
 
         this.on("exchangeError", (type, module) => {
-            if (this.printError) {
+            if (this.printExchangeError) {
                 let message;
 
                 switch (type) {

@@ -33,9 +33,9 @@ export declare abstract class RemoteInvokeRouter extends Server {
      */
     printMessageHeader: boolean;
     /**
-     * 是否将发生的错误打印到控制台（用于调试）。需要将emitExchangeError设置为true才生效
+     * 是否将发生的Exchange错误打印到控制台（用于调试）。需要将emitExchangeError设置为true才生效
      */
-    printError: boolean;
+    printExchangeError: boolean;
     constructor(server: http.Server | https.Server, configs: BaseSocketConfig);
     /**
      * 每当有一个新的连接被创建，该方法就会被触发。返回false表示拒绝连接，返回string表示接受连接。此字符串代表该接口所连接模块的名称

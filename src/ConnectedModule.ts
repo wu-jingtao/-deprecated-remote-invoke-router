@@ -152,7 +152,7 @@ export class ConnectedModule {
                                         this._router.broadcastExchangeCenter.get(path).off(this._sendBroadcastData);
                                 });
 
-                                if (this._receivableWhiteList.get([path[0], path[1]]).data) //如果该路径包含在白名单中，就立即去注册
+                                if (this._receivableWhiteList.get(path.slice(0, 2)).data) //如果该路径包含在白名单中，就立即去注册
                                     listener(true);
                             }
 
