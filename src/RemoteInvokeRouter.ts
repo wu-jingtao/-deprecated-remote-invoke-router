@@ -85,8 +85,8 @@ export abstract class RemoteInvokeRouter extends Server {
 
                 log
                     .location
-                    .location.green.bold.round
-                    .text
+                    .text.green.bold.round
+                    .location.bold
                     .content.green('remote-invoke-router', '接收到', module.moduleName, JSON.stringify(result, undefined, 4));
             }
         });
@@ -102,8 +102,8 @@ export abstract class RemoteInvokeRouter extends Server {
 
                 log
                     .location
-                    .location.cyan.bold.round
-                    .text
+                    .text.cyan.bold.round
+                    .location.bold
                     .content.cyan('remote-invoke-router', '发送到', module.moduleName, JSON.stringify(result, undefined, 4));
             }
         });

@@ -25,9 +25,16 @@ before(function (done) {
     module_2 = new RemoteInvoke(new BinaryWS_socket(new ServerSocket({ url: 'ws://localhost:8080', headers: { name: 'm2' } })), 'm2');
     module_3 = new RemoteInvoke(new BinaryWS_socket(new ServerSocket({ url: 'ws://localhost:8080', headers: { name: 'm3' } })), 'm3');
 
-    module_1.printMessage = true;
-    module_2.printMessage = true;
-    module_3.printMessage = true;
+    router.emitReceivedMessage = true;
+    router.emitSentMessage = true;
+    router.emitExchangeError = true;
+
+    router.printMessageHeader = false;
+    router.printExchangeError = false;
+
+    module_1.printMessage = false;
+    module_2.printMessage = false;
+    module_3.printMessage = false;
 });
 
 it('测试模块重复连接', function (done) {
@@ -57,7 +64,7 @@ describe('测试调用', function () {
         const task: Promise<any>[] = [];
 
         const testObj = { a: '1', b: 2, c: true, d: null, e: [1.1, 2.2, 3.3] }; //测试数据
-        const testBuffer = Buffer.alloc(1023 * 1023 * 4);
+        const testBuffer = Buffer.alloc(512 * 1023 * 4);
         for (let index = 0; index < testBuffer.length; index++) {
             testBuffer[index] = index % 2 === 0 ? 0 : 1;
         }
@@ -99,7 +106,7 @@ describe('测试调用', function () {
     });
 });
 
-it.only('测试广播', function (done) {
+it('测试广播', function (done) {
     //注意运行过程中传递的消息
     this.timeout(20 * 10000);
 
