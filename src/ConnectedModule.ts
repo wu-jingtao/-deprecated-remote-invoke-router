@@ -41,6 +41,25 @@ export class ConnectedModule {
      */
     readonly moduleName: string;
 
+    private _superUser: boolean = false;
+    /**
+     * 该模块是否作为超级用户，可调用或接收任何模块的方法与广播
+     */
+    get superUser() {
+        return this._superUser;
+    }
+    set superUser(v: boolean) {
+        if (this._superUser = v) {
+            this._receivableWhiteList.triggerDescendants(true);
+        } else {
+            this._receivableWhiteList.children.forEach(module_layer => {
+                module_layer.children.forEach(namespace_layer => {
+                    namespace_layer.triggerDescendants(namespace_layer.data);
+                });
+            });
+        }
+    }
+
     //#endregion
 
     constructor(router: RemoteInvokeRouter, socket: BaseSocket, moduleName: string) {
@@ -68,7 +87,7 @@ export class ConnectedModule {
                             const receiver = this._router.connectedModules.get(header[2]);
                             if (receiver) {
                                 if (header[3].length <= RemoteInvoke.pathMaxLength) {
-                                    if (this._invokableWhiteList.get([receiver.moduleName, header[3].split('/')[0]]).data) {    //判断是否有权访问目标模块的方法
+                                    if (this._superUser || this._invokableWhiteList.get([receiver.moduleName, header[3].split('/')[0]]).data) {    //判断是否有权访问目标模块的方法
                                         receiver._sendData([title, data]);
                                     } else {
                                         const msg = new InvokeFailedMessage();
@@ -105,8 +124,10 @@ export class ConnectedModule {
                         if (header[1] === this.moduleName) {
                             const receiver = this._router.connectedModules.get(header[2]);
                             if (receiver) {
-                                if (this._invokableWhiteList.get([receiver.moduleName]).forEachDescendants(layer => layer.data as any)
-                                    || receiver._invokableWhiteList.get([this.moduleName]).forEachDescendants(layer => layer.data as any)) {
+                                if (this._superUser ||
+                                    receiver._superUser ||
+                                    this._invokableWhiteList.get([receiver.moduleName]).forEachDescendants(layer => layer.data as any) ||
+                                    receiver._invokableWhiteList.get([this.moduleName]).forEachDescendants(layer => layer.data as any)) {
                                     receiver._sendData([title, data]);
                                 }
                             }
@@ -152,7 +173,7 @@ export class ConnectedModule {
                                         this._router.broadcastExchangeCenter.get(path).off(this._sendBroadcastData);
                                 });
 
-                                if (this._receivableWhiteList.get(path.slice(0, 2)).data) //如果该路径包含在白名单中，就立即去注册
+                                if (this._superUser || this._receivableWhiteList.get(path.slice(0, 2)).data) //如果该路径包含在白名单中，就立即去注册
                                     listener(true);
                             }
 
@@ -295,7 +316,7 @@ export class ConnectedModule {
 
         const layer = this._receivableWhiteList.get([moduleName, namespace]);
         layer.data = true;
-        layer.triggerDescendants(true); //通知可以去broadcastExchangeCenter中注册监听器了
+        if (!this._superUser) layer.triggerDescendants(true); //通知可以去broadcastExchangeCenter中注册监听器了
     }
 
     /**
@@ -304,7 +325,7 @@ export class ConnectedModule {
     removeReceivableWhiteList(moduleName: string, namespace: string) {
         const layer = this._receivableWhiteList.get([moduleName, namespace]);
         layer.data = undefined;
-        layer.triggerDescendants(false); //通知去broadcastExchangeCenter中删除监听器
+        if (!this._superUser) layer.triggerDescendants(false); //通知去broadcastExchangeCenter中删除监听器
     }
 
     //#endregion

@@ -26,6 +26,11 @@ export declare class ConnectedModule {
      * 连接对应的模块名称
      */
     readonly moduleName: string;
+    private _superUser;
+    /**
+     * 该模块是否作为超级用户，可调用或接收任何模块的方法与广播
+     */
+    superUser: boolean;
     constructor(router: RemoteInvokeRouter, socket: BaseSocket, moduleName: string);
     /**
      * 向该接口发送数据
